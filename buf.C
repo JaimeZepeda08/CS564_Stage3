@@ -70,10 +70,10 @@ BufMgr::~BufMgr() {
 */
 const Status BufMgr::allocBuf(int& frame) 
 {
-    // loop through buffer pool looking for a free frame
+    // loop through buffer pool to look for a free frame
     // we can scan the buffer pool at most 2 times (worst case) this means
     // that all buffers are pinned so there arent any free buffers
-    for (int i = 0; i < numBufs*2; i++) {
+    for (int i = 0; i < numBufs * 2; i++) {
         // advance the clock hand
         advanceClock();
 
@@ -103,14 +103,8 @@ const Status BufMgr::allocBuf(int& frame)
 
         // check dirty bit
         if (currFrame->dirty == true) {
-            #ifdef DEBUGBUF
-            cout << "flushing page " << currFrame->pageNo
-                    << " from frame " << clockHand << endl;
-            #endif
-
             // write page back to disk
-            Status status = currFrame->file->writePage(currFrame->pageNo,
-                                                  &(bufPool[clockHand]));
+            Status status = currFrame->file->writePage(currFrame->pageNo, &(bufPool[clockHand]));
 
             // check status of IO                                    
             if (status != OK) {
@@ -122,20 +116,14 @@ const Status BufMgr::allocBuf(int& frame)
         }
 
         // remove from hash table
-        Status status = hashTable->remove(currFrame->file,
-                                            currFrame->pageNo);
-        
-        // check status of IO                                        
-        if (status != OK) {
-            return UNIXERR;
-        }
+        hashTable->remove(currFrame->file, currFrame->pageNo);
 
         // if we reached here, then we found a free frame
         frame = clockHand;
         return OK;
     }
 
-    // we scanned buffer pool twice, buffer is full
+    // we scanned buffer pool twice, so buffer is full
     return BUFFEREXCEEDED;
 }
 
