@@ -163,14 +163,14 @@ const Status BufMgr::readPage(File* file, const int PageNo, Page*& page)
  */
 const Status BufMgr::unPinPage(File* file, const int PageNo, const bool dirty)
 {
-    int frameIndex;
-    Status status = hashTable->lookup(file, PageNo, frameIndex);
+    int frameNo;
+    Status status = hashTable->lookup(file, PageNo, frameNo);
 
     // Check if page exists in buffer
     if (status != OK)
         return HASHNOTFOUND;
 
-    BufDesc* frame = &bufTable[frameIndex];
+    BufDesc* frame = &bufTable[frameNo];
 
     // Page is already unpinned
     if (frame->pinCnt == 0)
