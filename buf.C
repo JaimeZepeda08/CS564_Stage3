@@ -62,15 +62,75 @@ BufMgr::~BufMgr() {
     delete [] bufPool;
 }
 
-
-const Status BufMgr::allocBuf(int & frame) 
+/*
+* This function allocates a buffer frame using the clock replacement policy
+* Returns:
+*   OK if successful
+*   BUFFEREXCEEDED if all buffer frames are pinned
+*/
+const Status BufMgr::allocBuf(int& frame) 
 {
+    // loop through buffer pool looking for a free frame
+    // we can scan the buffer pool at most 2 times (worst case) this means
+    // that all buffers are pinned so there arent any free buffers
+    for (int i = 0; i < numBufs*2; i++) {
+        // advance the clock hand
+        advanceClock();
 
+        // get frame at the current clock hand position
+        BufDesc* currFrame = &bufTable[clockHand];
+        
+        // check if valid bit is set
+        if (currFrame->valid == false) {
+            // found a free frame
+            frame = clockHand;
+            return OK;
+        }
 
+        // check if reference bit is set
+        if (currFrame->refbit == true) {
+            // clear reference bit and continue
+            // this frame will be checked again in the next pass (if needed)
+            currFrame->refbit = false;
+            continue;
+        }
 
+        // check if frame is pinned
+        if (currFrame->pinCnt > 0) {
+            // advance clock hand and continue
+            continue;
+        }
 
+        // check dirty bit
+        if (currFrame->dirty == true) {
+            #ifdef DEBUGBUF
+            cout << "flushing page " << currFrame->pageNo
+                    << " from frame " << clockHand << endl;
+            #endif
 
+            Status status = currFrame->file->writePage(currFrame->pageNo,
+                                                  &(bufPool[clockHand]));
+            if (status != OK) {
+                return UNIXERR;
+            }
+    
+            currFrame->dirty = false;
+        }
 
+        // remove from hash table
+        Status status = hashTable->remove(currFrame->file,
+                                            currFrame->pageNo);
+        if (status != OK) {
+            return UNIXERR;
+        }
+
+        // if we reached here, then we found a free frame
+        frame = clockHand;
+        return OK;
+    }
+
+    // we scanned buffer pool twice, buffer is full
+    return BUFFEREXCEEDED;
 }
 
 	
