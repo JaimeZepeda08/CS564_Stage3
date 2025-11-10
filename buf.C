@@ -108,18 +108,24 @@ const Status BufMgr::allocBuf(int& frame)
                     << " from frame " << clockHand << endl;
             #endif
 
+            // write page back to disk
             Status status = currFrame->file->writePage(currFrame->pageNo,
                                                   &(bufPool[clockHand]));
+
+            // check status of IO                                    
             if (status != OK) {
                 return UNIXERR;
             }
-    
+
+            // clear dirty bit
             currFrame->dirty = false;
         }
 
         // remove from hash table
         Status status = hashTable->remove(currFrame->file,
                                             currFrame->pageNo);
+        
+        // check status of IO                                        
         if (status != OK) {
             return UNIXERR;
         }
