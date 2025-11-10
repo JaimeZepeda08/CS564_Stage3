@@ -150,14 +150,40 @@ const Status BufMgr::readPage(File* file, const int PageNo, Page*& page)
 }
 
 
-const Status BufMgr::unPinPage(File* file, const int PageNo, 
-			       const bool dirty) 
+/*
+ * This function unpins a page from the buffer pool.
+ *
+ * When a user finishes using a page, this function decreases
+ * the pin count for that page and marks it dirty if modified.
+ *
+ * Returns:
+ *   1. OK               if successful
+ *   2. HASHNOTFOUND     if the page is not found in the buffer
+ *   3. PAGENOTPINNED    if the page is already unpinned
+ */
+const Status BufMgr::unPinPage(File* file, const int PageNo, const bool dirty)
 {
+    int frameIndex;
+    Status status = hashTable->lookup(file, PageNo, frameIndex);
 
+    // Check if page exists in buffer
+    if (status != OK)
+        return HASHNOTFOUND;
 
+    BufDesc* frame = &bufTable[frameIndex];
 
+    // Page is already unpinned
+    if (frame->pinCnt == 0)
+        return PAGENOTPINNED;
 
+    // Decrease pin count
+    frame->pinCnt--;
 
+    // Mark dirty if modified
+    if (dirty)
+        frame->dirty = true;
+
+    return OK;
 }
 
 const Status BufMgr::allocPage(File* file, int& pageNo, Page*& page) 
