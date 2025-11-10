@@ -142,11 +142,75 @@ const Status BufMgr::allocBuf(int& frame)
 	
 const Status BufMgr::readPage(File* file, const int PageNo, Page*& page)
 {
+    // -- Morgan (Person 2) was here. Test push! --
+    
+    //access counter for statistics
+    bufStats.accesses++; //bufStats (lowercase) is the variable
 
+    //spot number on RAM
+    int frameNo;
+    Status status;
 
+    //check hashtable if page is already in RAM
+    status = hashTable->lookup(file, PageNo, frameNo); 
 
+    if(status == OK){
+        //cache hit
+        //page is in buffer
+        //page recently used
+        bufTable[frameNo].refbit = true; 
 
+        //clock algorithm: page in use, dont evict
+        bufTable[frameNo].pinCnt++; 
 
+        //page output parameter point to fram in buffer
+        page = &bufPool[frameNo]; 
+        return OK;
+    }
+    else if (status == HASHNOTFOUND){
+        //cache miss, read disk
+
+        //disk read statistics
+        bufStats.diskreads++;
+
+        //2B1
+        //find free frame
+        status = allocBuf(frameNo); 
+        if (status != OK){
+            return status; //all buffer in use, bufferexceed
+        }
+
+        //2B2
+        //have free frame now
+        status = file->readPage(PageNo, &bufPool[frameNo]); 
+        if (status != OK){
+            //disk read failed (page doesn't exist).
+            return UNIXERR;
+        }
+
+        //2B3
+        //this page lives in this frame, log
+        status = hashTable->insert(file, PageNo, frameNo);
+        if (status != OK){
+            
+            return HASHTBLERROR;
+        }
+
+        //2B4
+        //setup frame metadata
+        //Set() helper function initializes the frame's state
+        bufTable[frameNo].Set(file, PageNo); 
+
+        //2B5
+        //return pointer set page outpit paremeter like in hit case
+        page = &bufPool[frameNo]; 
+
+        return OK;
+    }
+    else{
+        //2C error occured
+        return status;
+    }
 }
 
 
@@ -188,13 +252,43 @@ const Status BufMgr::unPinPage(File* file, const int PageNo, const bool dirty)
 
 const Status BufMgr::allocPage(File* file, int& pageNo, Page*& page) 
 {
+    Status status;
+    int newPageNumber;
+    int allocatedFrameNumber;
 
+    //1 allocate new empty page on disk
+    status = file->allocatePage(newPageNumber);
+    if (status != OK){
+        return UNIXERR; //fail if disk is full
+    }
 
+    //disk read counter
+    bufStats.diskreads++;
 
+    //2 find free frame in buffer pool
+    status = allocBuf(allocatedFrameNumber);
+    if (status != OK){
+        //buffer pool is full of pinned pages.
+        //just allocated a page on disk, but we can't bring it into memory
+        //return the error
+        return status;
+    }
 
+    //3 map new page to its fram in the has table
+    status = hashTable->insert(file, newPageNumber, allocatedFrameNumber);
+    if (status != OK){
+        return HASHTBLERROR;
+    }
 
+    //4 initialize new frame metadata
+    //set pinCnt=1, dirty=false, valid=true
+    bufTable[allocatedFrameNumber].Set(file, newPageNumber);
 
+    //5 retrn new page number and pointer
+    pageNo = newPageNumber;
+    page = &bufPool[allocatedFrameNumber];
 
+    return OK;
 }
 
 const Status BufMgr::disposePage(File* file, const int pageNo) 
