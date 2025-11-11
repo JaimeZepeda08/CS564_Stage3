@@ -127,7 +127,16 @@ const Status BufMgr::allocBuf(int& frame)
     return BUFFEREXCEEDED;
 }
 
-	
+/*
+ * This function reads a specific page from a file into the buffer pool.
+ * If the page is already in the buffer pool (cache hit), it increments the pin count. If it's not (cache miss), it finds a free frame using allocBuf, reads the page from disk, and inserts it into the hash table.
+ *
+ * Returns:
+ * 1. OK               if successful
+ * 2. BUFFEREXCEEDED   if all buffer frames are pinned
+ * 3. UNIXERR          if a disk I/O error occurred
+ * 4. HASHTBLERROR     if a hash table error occurred
+ */	
 const Status BufMgr::readPage(File* file, const int PageNo, Page*& page)
 {
     // -- Morgan (Person 2) was here. Test push! --
@@ -238,6 +247,16 @@ const Status BufMgr::unPinPage(File* file, const int PageNo, const bool dirty)
     return OK;
 }
 
+/*
+ * This function allocates a new, empty page in the specified file and brings it into the buffer pool.
+ * It first calls the file->allocatePage() method to get a new page on disk, then calls allocBuf() to find a frame for it, and finally inserts it into the hash table.
+ *
+ * Returns:
+ * 1. OK               if successful
+ * 2. BUFFEREXCEEDED   if all buffer frames are pinned
+ * 3. UNIXERR          if a disk I/O error occurred
+ * 4. HASHTBLERROR     if a hash table error occurred
+ */
 const Status BufMgr::allocPage(File* file, int& pageNo, Page*& page) 
 {
     Status status;
